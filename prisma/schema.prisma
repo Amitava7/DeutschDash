@@ -1,13 +1,62 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  username  String   @unique
+  password  String
+  level     String   @default("B1")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  decks            Deck[]
+  practiceSessions PracticeSession[]
+}
+
+model Deck {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  userId      String   @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcards Flashcard[]
+}
+
+model Flashcard {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  germanWord         String
+  englishTranslation String
+  nextReviewDate     DateTime @default(now())
+  currentInterval    Int      @default(0)
+  easeLevel          Int      @default(0)
+  deckId             String   @db.ObjectId
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  deck Deck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+}
+
+model PracticeSession {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  type           String
+  topic          String?
+  tense          String?
+  level          String
+  score          Int?
+  totalQuestions Int?
+  data           Json?
+  userId         String   @db.ObjectId
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

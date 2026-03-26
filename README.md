@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DeutschDash
+
+A German language learning web application with spaced repetition flashcards, AI-generated tense practice, and reading comprehension exercises.
+
+## Stack
+
+- **Next.js 16** (App Router) + TypeScript + Tailwind CSS
+- **Prisma 5** + MongoDB (Atlas in production, Docker locally)
+- **NextAuth.js v4** — session-based authentication
+- **Anthropic Claude API** — AI content generation
+- **Shadcn/ui** — component library
 
 ## Getting Started
 
-First, run the development server:
+### 1. Prerequisites
+
+- Node.js 18+
+- Docker (for local MongoDB)
+
+### 2. Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and fill in:
+- `MONGODB_URI` — use `mongodb://localhost:27017/deutschdash` for local dev
+- `CLAUDE_API_KEY` — your Anthropic API key
+- `NEXTAUTH_SECRET` — any random string (e.g. `openssl rand -base64 32`)
+
+### 3. Start MongoDB
+
+```bash
+docker-compose up -d
+```
+
+### 4. Install & generate Prisma client
+
+```bash
+npm install
+npx prisma generate
+```
+
+### 5. (Optional) Seed with a demo user
+
+```bash
+npx ts-node --compiler-options '{"module":"CommonJS"}' src/lib/seed.ts
+```
+
+This creates `admin` / `password` with a "Common Verbs" deck pre-loaded with 10 flashcards.
+
+### 6. Run dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Features
 
-## Learn More
+### Flashcards (SRS)
+- Flip-card UI with 3D CSS animation
+- SM-2 spaced repetition: Hard resets to end of session; Easy advances through levels (1 day → 7 → 14 → 28 → 56…)
+- Dashboard shows a green border/check when a deck has no cards due today
 
-To learn more about Next.js, take a look at the following resources:
+### Tense Practice
+- Select a German tense (Präsens, Perfekt, Konjunktiv II, etc.)
+- Claude generates 10 fill-in-the-blank sentences at your current level
+- "Check Answers" highlights correct (green) and incorrect (red) with the correct answer shown
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Reading Comprehension
+- Enter any topic or pick from suggestions
+- Claude generates a level-appropriate German passage
+- 3 multiple-choice questions with "Reveal Answer" toggle per question
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Level Selector
+- Dropdown in the nav bar (A1 → C2)
+- Persisted to the database and passed to all Claude API calls
 
-## Deploy on Vercel
+## Production
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Set `MONGODB_URI` to your MongoDB Atlas connection string and `NEXTAUTH_URL` to your domain.
