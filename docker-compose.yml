@@ -11,6 +11,18 @@ services:
       - mongo_data:/data/db
     environment:
       MONGO_INITDB_DATABASE: deutschdash
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test: |
+        mongosh --quiet --eval "
+          try { rs.status().ok } catch(e) {
+            rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]});
+          }
+        "
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
 volumes:
   mongo_data:
