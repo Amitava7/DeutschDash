@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { handleApiError } from "@/lib/api-error";
 
 export async function DELETE(
   _req: NextRequest,
@@ -14,14 +15,18 @@ export async function DELETE(
 
   const { deckId } = await params;
 
-  const deck = await prisma.deck.findFirst({
-    where: { id: deckId, userId: session.user.id },
-  });
+  try {
+    const deck = await prisma.deck.findFirst({
+      where: { id: deckId, userId: session.user.id },
+    });
 
-  if (!deck) {
-    return NextResponse.json({ error: "Deck not found" }, { status: 404 });
+    if (!deck) {
+      return NextResponse.json({ error: "Deck not found" }, { status: 404 });
+    }
+
+    await prisma.deck.delete({ where: { id: deckId } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return handleApiError(error) ?? NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  await prisma.deck.delete({ where: { id: deckId } });
-  return NextResponse.json({ success: true });
 }

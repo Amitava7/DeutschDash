@@ -21,7 +21,6 @@ export function calculateNextReview(
     };
   }
 
-  // Easy
   const newEaseLevel = easeLevel + 1;
   let newInterval: number;
 
@@ -36,7 +35,6 @@ export function calculateNextReview(
       newInterval = 14;
       break;
     default:
-      // Level 4+: double the previous interval, minimum 28
       newInterval = currentInterval > 0 ? currentInterval * 2 : 28;
   }
 

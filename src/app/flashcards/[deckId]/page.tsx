@@ -57,14 +57,12 @@ export default function ReviewPage({ params }: { params: Promise<{ deckId: strin
     const updated = await res.json();
 
     if (rating === "hard") {
-      // Re-queue at the end
       setDueCards((prev) => {
         const next = [...prev];
         next.splice(currentIndex, 1);
         next.push({ ...card, ...updated });
         return next;
       });
-      // currentIndex stays the same (next card slides in)
     } else {
       setDueCards((prev) => {
         const next = [...prev];
@@ -73,7 +71,6 @@ export default function ReviewPage({ params }: { params: Promise<{ deckId: strin
       });
     }
 
-    // Update cards state
     setCards((prev) =>
       prev.map((c) => (c.id === card.id ? { ...c, ...updated } : c))
     );

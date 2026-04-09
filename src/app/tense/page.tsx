@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,12 +40,12 @@ export default function TensePracticePage() {
   const [tense, setTense] = useState(TENSES[0]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<AnswerState[]>([]);
-  const [generating, setGenerating] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
 
-  const generate = async () => {
-    setGenerating(true);
+  const load = useCallback(async (selectedTense: string) => {
+    setLoading(true);
     setError("");
     setChecked(false);
     setQuestions([]);
@@ -54,28 +54,40 @@ export default function TensePracticePage() {
     const res = await fetch("/api/practice/tense", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tense, level }),
+      body: JSON.stringify({ tense: selectedTense, level }),
     });
 
-    setGenerating(false);
+    setLoading(false);
 
     if (!res.ok) {
-      setError("Failed to generate practice. Check your API key.");
+      setError("Failed to load practice. Please try again.");
       return;
     }
 
     const data = await res.json();
     setQuestions(data.questions);
     setAnswers(data.questions.map(() => ({ value: "", correct: null })));
-  };
+  }, [level]);
+
+  useEffect(() => {
+    load(tense);
+  }, [tense, load]);
+
+  const normalizeGerman = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/ä/g, "a")
+      .replace(/ö/g, "o")
+      .replace(/ü/g, "u")
+      .replace(/ß/g, "ss");
 
   const checkAnswers = () => {
     setAnswers((prev) =>
       prev.map((a, i) => ({
         ...a,
         correct:
-          a.value.trim().toLowerCase() ===
-          questions[i].correct_answer.trim().toLowerCase(),
+          normalizeGerman(a.value.trim()) ===
+          normalizeGerman(questions[i].correct_answer.trim()),
       }))
     );
     setChecked(true);
@@ -123,29 +135,29 @@ export default function TensePracticePage() {
       <div>
         <h1 className="text-2xl font-bold">Tense Practice</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          AI-generated fill-in-the-blank exercises · Level {level}
+          Fill-in-the-blank exercises · Level {level}
         </p>
       </div>
 
-      <div className="flex gap-3 items-end flex-wrap">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Tense</Label>
-          <Select value={tense} onValueChange={(v) => setTense(v ?? TENSES[0])}>
-            <SelectTrigger className="w-[260px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TENSES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={generate} disabled={generating}>
-          {generating ? "Generating..." : "Generate"}
-        </Button>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Tense</Label>
+        <Select
+          value={tense}
+          onValueChange={(v) => {
+            setTense(v ?? TENSES[0]);
+          }}
+        >
+          <SelectTrigger className="w-[260px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TENSES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {error && (
@@ -154,9 +166,9 @@ export default function TensePracticePage() {
         </Alert>
       )}
 
-      {generating && (
+      {loading && (
         <div className="text-muted-foreground text-sm animate-pulse">
-          Asking Claude to generate sentences...
+          Loading sentences...
         </div>
       )}
 
@@ -180,8 +192,8 @@ export default function TensePracticePage() {
                 Score: {score} / {questions.length}
                 {score === questions.length && " — Perfect!"}
               </div>
-              <Button variant="outline" onClick={generate}>
-                Try Again
+              <Button variant="outline" onClick={() => load(tense)}>
+                Next Exercises
               </Button>
             </div>
           )}

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { generateTensePractice } from "@/lib/claude";
 import { prisma } from "@/lib/prisma";
+import { handleApiError } from "@/lib/api-error";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -18,9 +18,41 @@ export async function POST(req: NextRequest) {
   const effectiveLevel = level || session.user.level || "B1";
 
   try {
-    const questions = await generateTensePractice(tense, effectiveLevel);
+    const allExercises = await prisma.tenseExercise.findMany({
+      where: { tense, level: effectiveLevel },
+    });
 
-    // Save session record
+    if (allExercises.length === 0) {
+      return NextResponse.json(
+        { error: "No exercises found for this tense" },
+        { status: 404 }
+      );
+    }
+
+    const pastSessions = await prisma.practiceSession.findMany({
+      where: { userId: session.user.id, type: "tense", tense },
+      select: { data: true },
+    });
+
+    const doneIds = new Set<string>();
+    for (const s of pastSessions) {
+      const d = s.data as { exerciseIds?: string[] } | null;
+      if (d?.exerciseIds) d.exerciseIds.forEach((id) => doneIds.add(id));
+    }
+
+    let available = allExercises.filter((ex) => !doneIds.has(ex.id));
+    if (available.length === 0) available = allExercises;
+
+    const shuffled = available.sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, 10);
+
+    const exerciseIds = selected.map((ex) => ex.id);
+    const questions = selected.map((ex) => ({
+      sentence: ex.sentence,
+      correct_answer: ex.correctAnswer,
+      hint: ex.hint,
+    }));
+
     await prisma.practiceSession.create({
       data: {
         type: "tense",
@@ -28,13 +60,15 @@ export async function POST(req: NextRequest) {
         level: effectiveLevel,
         totalQuestions: questions.length,
         userId: session.user.id,
-        data: questions as unknown as import("@prisma/client").Prisma.JsonArray,
+        data: { exerciseIds, questions } as unknown as import("@prisma/client").Prisma.JsonObject,
       },
     });
 
     return NextResponse.json({ questions });
   } catch (error) {
-    console.error("Claude API error:", error);
-    return NextResponse.json({ error: "Failed to generate practice" }, { status: 500 });
+    const dbResponse = handleApiError(error);
+    if (dbResponse) return dbResponse;
+    console.error("Tense practice error:", error);
+    return NextResponse.json({ error: "Failed to load practice" }, { status: 500 });
   }
 }

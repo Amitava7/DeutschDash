@@ -17,6 +17,7 @@ model User {
 
   decks            Deck[]
   practiceSessions PracticeSession[]
+  cardProgress     UserCardProgress[]
 }
 
 model Deck {
@@ -24,11 +25,11 @@ model Deck {
   name        String
   description String?
   isDefault   Boolean  @default(false)
-  userId      String   @db.ObjectId
+  userId      String?  @db.ObjectId
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   flashcards Flashcard[]
 }
 
@@ -36,14 +37,29 @@ model Flashcard {
   id                 String   @id @default(auto()) @map("_id") @db.ObjectId
   germanWord         String
   englishTranslation String
-  nextReviewDate     DateTime @default(now())
-  currentInterval    Int      @default(0)
-  easeLevel          Int      @default(0)
+  level              String   @default("B1")
   deckId             String   @db.ObjectId
   createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
 
-  deck Deck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  deck         Deck               @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  userProgress UserCardProgress[]
+}
+
+model UserCardProgress {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String    @db.ObjectId
+  flashcardId     String    @db.ObjectId
+  nextReviewDate  DateTime  @default(now())
+  currentInterval Int       @default(0)
+  easeLevel       Int       @default(0)
+  lastReviewedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flashcardId])
 }
 
 model PracticeSession {
@@ -59,4 +75,21 @@ model PracticeSession {
   createdAt      DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TenseExercise {
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  tense         String
+  sentence      String
+  correctAnswer String
+  hint          String
+  level         String @default("B1")
+}
+
+model ReadingPassage {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  topic     String
+  paragraph String
+  questions Json
+  level     String @default("B1")
 }

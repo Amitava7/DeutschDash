@@ -33,14 +33,28 @@ interface DeckSummary {
   dueCards: number;
 }
 
+interface PracticeStats {
+  tense: {
+    totalSessions: number;
+    avgScore: number | null;
+    breakdown: Record<string, { sessions: number; avgScore: number | null }>;
+  };
+  reading: {
+    totalSessions: number;
+    avgScore: number | null;
+  };
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<PracticeStats | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const [creatingStandard, setCreatingStandard] = useState(false);
 
   const fetchDecks = async () => {
     const res = await fetch("/api/decks");
@@ -48,8 +62,14 @@ export default function DashboardPage() {
     setLoading(false);
   };
 
+  const fetchStats = async () => {
+    const res = await fetch("/api/practice/stats");
+    if (res.ok) setStats(await res.json());
+  };
+
   useEffect(() => {
     fetchDecks();
+    fetchStats();
   }, []);
 
   const createDeck = async () => {
@@ -72,6 +92,18 @@ export default function DashboardPage() {
     }
   };
 
+  const createStandardDeck = async () => {
+    setCreatingStandard(true);
+    const res = await fetch("/api/decks/from-standard", { method: "POST" });
+    setCreatingStandard(false);
+    if (res.ok) {
+      fetchDecks();
+      toast.success("Deck created with 20 standard B1 words");
+    } else {
+      toast.error("Failed to create standard deck");
+    }
+  };
+
   const deleteDeck = async (id: string) => {
     if (!confirm("Delete this deck and all its cards?")) return;
     const res = await fetch(`/api/decks/${id}`, { method: "DELETE" });
@@ -90,7 +122,12 @@ export default function DashboardPage() {
             Level: <span className="font-medium text-foreground">{session?.user?.level}</span>
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>New Deck</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={createStandardDeck} disabled={creatingStandard}>
+            {creatingStandard ? "Creating..." : "Create Deck with Standard Words"}
+          </Button>
+          <Button onClick={() => setDialogOpen(true)}>New Deck</Button>
+        </div>
       </div>
 
       <div>
@@ -159,8 +196,25 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Tense Practice</CardTitle>
-            <CardDescription>AI-generated fill-in-the-blank exercises</CardDescription>
+            <CardDescription>Fill-in-the-blank exercises</CardDescription>
           </CardHeader>
+          <CardContent className="pb-2">
+            {stats && (
+              <div className="flex gap-2 text-sm flex-wrap">
+                <Badge variant="secondary">{stats.tense.totalSessions} sessions</Badge>
+                {stats.tense.avgScore != null && (
+                  <Badge variant={stats.tense.avgScore >= 70 ? "default" : "destructive"}>
+                    avg {stats.tense.avgScore}%
+                  </Badge>
+                )}
+                {Object.entries(stats.tense.breakdown).map(([tense, data]) => (
+                  <Badge key={tense} variant="outline" className="text-xs">
+                    {tense}: {data.sessions}×{data.avgScore != null ? ` ${data.avgScore}%` : ""}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
           <CardFooter>
             <Link href="/tense">
               <Button variant="outline" size="sm">Start Practice</Button>
@@ -170,8 +224,20 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Reading Comprehension</CardTitle>
-            <CardDescription>AI-generated passages with comprehension questions</CardDescription>
+            <CardDescription>Passages with comprehension questions</CardDescription>
           </CardHeader>
+          <CardContent className="pb-2">
+            {stats && (
+              <div className="flex gap-2 text-sm">
+                <Badge variant="secondary">{stats.reading.totalSessions} sessions</Badge>
+                {stats.reading.avgScore != null && (
+                  <Badge variant={stats.reading.avgScore >= 70 ? "default" : "destructive"}>
+                    avg {stats.reading.avgScore}%
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
           <CardFooter>
             <Link href="/reading">
               <Button variant="outline" size="sm">Start Reading</Button>

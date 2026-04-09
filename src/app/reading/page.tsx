@@ -1,22 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useLevel } from "@/context/LevelContext";
-
-const SUGGESTED_TOPICS = [
-  "das Wetter",
-  "die Familie",
-  "Reisen",
-  "Essen und Trinken",
-  "Sport",
-  "Arbeit",
-  "Stadt und Land",
-];
 
 interface Question {
   question: string;
@@ -25,23 +13,22 @@ interface Question {
 }
 
 interface ReadingContent {
+  topic: string;
   paragraph: string;
   questions: Question[];
 }
 
 export default function ReadingPage() {
   const { level } = useLevel();
-  const [topic, setTopic] = useState("");
   const [content, setContent] = useState<ReadingContent | null>(null);
-  const [generating, setGenerating] = useState(false);
+  const [topic, setTopic] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState<boolean[]>([]);
   const [selected, setSelected] = useState<(string | null)[]>([]);
 
-  const generate = async (overrideTopic?: string) => {
-    const t = overrideTopic ?? topic;
-    if (!t.trim()) return;
-    setGenerating(true);
+  const load = async () => {
+    setLoading(true);
     setError("");
     setContent(null);
     setRevealed([]);
@@ -50,22 +37,26 @@ export default function ReadingPage() {
     const res = await fetch("/api/practice/reading", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic: t, level }),
+      body: JSON.stringify({ topic: "random", level }),
     });
 
-    setGenerating(false);
+    setLoading(false);
 
     if (!res.ok) {
-      setError("Failed to generate content. Check your API key.");
+      setError("Failed to load content. Please try again.");
       return;
     }
 
     const data: ReadingContent = await res.json();
     setContent(data);
+    setTopic(data.topic ?? "");
     setRevealed(new Array(data.questions.length).fill(false));
     setSelected(new Array(data.questions.length).fill(null));
-    if (overrideTopic) setTopic(overrideTopic);
   };
+
+  useEffect(() => {
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleReveal = (i: number) => {
     setRevealed((prev) => {
@@ -82,6 +73,11 @@ export default function ReadingPage() {
       next[qi] = option;
       return next;
     });
+    setRevealed((prev) => {
+      const next = [...prev];
+      next[qi] = true;
+      return next;
+    });
   };
 
   return (
@@ -89,36 +85,8 @@ export default function ReadingPage() {
       <div>
         <h1 className="text-2xl font-bold">Reading Comprehension</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          AI-generated passages with comprehension questions · Level {level}
+          Reading passages with comprehension questions · Level {level}
         </p>
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex gap-3 items-end flex-wrap">
-          <div className="space-y-1.5 flex-1 max-w-xs">
-            <Label className="text-xs">Topic</Label>
-            <Input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. das Wetter, Reisen..."
-              onKeyDown={(e) => e.key === "Enter" && generate()}
-            />
-          </div>
-          <Button onClick={() => generate()} disabled={generating || !topic.trim()}>
-            {generating ? "Generating..." : "Generate"}
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {SUGGESTED_TOPICS.map((t) => (
-            <button
-              key={t}
-              onClick={() => generate(t)}
-              className="text-xs border rounded-full px-3 py-1 hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-            >
-              {t}
-            </button>
-          ))}
-        </div>
       </div>
 
       {error && (
@@ -127,9 +95,9 @@ export default function ReadingPage() {
         </Alert>
       )}
 
-      {generating && (
+      {loading && (
         <div className="text-muted-foreground text-sm animate-pulse">
-          Claude is writing your passage...
+          Loading your passage...
         </div>
       )}
 
@@ -140,7 +108,7 @@ export default function ReadingPage() {
             <div className="flex items-center gap-2">
               <h2 className="font-semibold">Text</h2>
               <Badge variant="outline">{level}</Badge>
-              <Badge variant="secondary">{topic}</Badge>
+              {topic && <Badge variant="secondary">{topic}</Badge>}
             </div>
             <div className="border rounded-xl p-6 bg-card leading-relaxed text-sm">
               {content.paragraph.split("\n").map((line, i) => (
@@ -149,8 +117,8 @@ export default function ReadingPage() {
                 </p>
               ))}
             </div>
-            <Button variant="outline" size="sm" onClick={() => generate()}>
-              New Passage
+            <Button variant="outline" size="sm" onClick={load}>
+              Next Passage
             </Button>
           </div>
 

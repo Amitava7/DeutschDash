@@ -12,7 +12,7 @@ interface LevelContextType {
 
 const LevelContext = createContext<LevelContextType>({
   level: "B1",
-  setLevel: () => {},
+  setLevel: () => { },
 });
 
 export function LevelProvider({ children }: { children: ReactNode }) {
@@ -27,7 +27,6 @@ export function LevelProvider({ children }: { children: ReactNode }) {
 
   const setLevel = async (newLevel: Level) => {
     setLevelState(newLevel);
-    // Persist to DB and update session
     try {
       await fetch("/api/user/level", {
         method: "PATCH",
@@ -36,7 +35,6 @@ export function LevelProvider({ children }: { children: ReactNode }) {
       });
       await update({ level: newLevel });
     } catch {
-      // ignore errors silently — UI already updated
     }
   };
 
