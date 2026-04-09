@@ -1,13 +1,12 @@
 # DeutschDash
 
-A German language learning web application with spaced repetition flashcards, AI-generated tense practice, and reading comprehension exercises.
+A German language learning web application with spaced repetition flashcards, tense practice, and reading comprehension exercises.
 
 ## Stack
 
 - **Next.js 16** (App Router) + TypeScript + Tailwind CSS
 - **Prisma 5** + MongoDB (Atlas in production, Docker locally)
 - **NextAuth.js v4** — session-based authentication
-- **Anthropic Claude API** — AI content generation
 - **Shadcn/ui** — component library
 
 ## Getting Started
@@ -25,7 +24,6 @@ cp .env.example .env
 
 Edit `.env` and fill in:
 - `MONGODB_URI` — use `mongodb://localhost:27017/deutschdash` for local dev
-- `CLAUDE_API_KEY` — your Anthropic API key
 - `NEXTAUTH_SECRET` — any random string (e.g. `openssl rand -base64 32`)
 
 ### 3. Start MongoDB
@@ -46,8 +44,6 @@ npx prisma generate
 ```bash
 npx ts-node --compiler-options '{"module":"CommonJS"}' src/lib/seed.ts
 ```
-
-This creates `admin` / `password` with a "Common Verbs" deck pre-loaded with 10 flashcards.
 
 ### 6. Run dev server
 
