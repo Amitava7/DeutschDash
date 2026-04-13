@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { parseJsonBody, validateStringLengths } from "@/lib/validation";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,10 +11,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { topic, level } = await req.json();
+  const [body, parseError] = await parseJsonBody<{ topic?: string; level?: string }>(req);
+  if (parseError) return parseError;
+
+  const { topic, level } = body;
   if (!topic) {
     return NextResponse.json({ error: "Topic required" }, { status: 400 });
   }
+
+  const lengthError = validateStringLengths(body, ["topic", "level"]);
+  if (lengthError) return lengthError;
 
   const effectiveLevel = level || session.user.level || "B1";
 

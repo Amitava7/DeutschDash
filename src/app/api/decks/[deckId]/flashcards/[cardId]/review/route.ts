@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateNextReview } from "@/lib/srs";
 import { handleApiError } from "@/lib/api-error";
+import { parseJsonBody } from "@/lib/validation";
 
 export async function PATCH(
   req: NextRequest,
@@ -15,7 +16,11 @@ export async function PATCH(
   }
 
   const { deckId, cardId } = await params;
-  const { rating } = await req.json();
+
+  const [body, parseError] = await parseJsonBody<{ rating?: string }>(req);
+  if (parseError) return parseError;
+
+  const { rating } = body;
 
   if (rating !== "easy" && rating !== "hard") {
     return NextResponse.json({ error: "Invalid rating" }, { status: 400 });

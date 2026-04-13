@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { parseJsonBody, validateStringLengths } from "@/lib/validation";
 
 export async function GET(
   _req: NextRequest,
@@ -78,10 +79,16 @@ export async function POST(
       return NextResponse.json({ error: "Deck not found" }, { status: 404 });
     }
 
-    const { germanWord, englishTranslation } = await req.json();
+    const [body, parseError] = await parseJsonBody<{ germanWord?: string; englishTranslation?: string }>(req);
+    if (parseError) return parseError;
+
+    const { germanWord, englishTranslation } = body;
     if (!germanWord || !englishTranslation) {
       return NextResponse.json({ error: "Both fields required" }, { status: 400 });
     }
+
+    const lengthError = validateStringLengths(body, ["germanWord", "englishTranslation"]);
+    if (lengthError) return lengthError;
 
     const card = await prisma.flashcard.create({
       data: { germanWord, englishTranslation, deckId },

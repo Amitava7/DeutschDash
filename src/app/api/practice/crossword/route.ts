@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { parseJsonBody, validateStringLengths } from "@/lib/validation";
 
 const GRID_SIZE = 6;
 
@@ -206,7 +207,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { level } = await request.json();
+    const [body, parseError] = await parseJsonBody<{ level?: string }>(request);
+    if (parseError) return parseError;
+
+    const { level } = body;
+
+    const lengthError = validateStringLengths(body, ["level"]);
+    if (lengthError) return lengthError;
 
     const words = await prisma.crosswordWord.findMany({
       where: { level: level || "B1" },
@@ -290,7 +297,13 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const { sessionId, userGrid } = await request.json();
+    const [body, parseError] = await parseJsonBody<{ sessionId?: string; userGrid?: string[][] }>(request);
+    if (parseError) return parseError;
+
+    const { sessionId, userGrid } = body;
+
+    const lengthError = validateStringLengths(body, ["sessionId"]);
+    if (lengthError) return lengthError;
 
     const existing = await prisma.practiceSession.findFirst({
       where: { id: sessionId, userId: session.user.id },

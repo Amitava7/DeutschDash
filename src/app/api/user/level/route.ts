@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { parseJsonBody } from "@/lib/validation";
 
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,9 +11,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { level } = await req.json();
+  const [body, parseError] = await parseJsonBody<{ level?: string }>(req);
+  if (parseError) return parseError;
+
+  const { level } = body;
   const validLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
-  if (!validLevels.includes(level)) {
+  if (!level || !validLevels.includes(level)) {
     return NextResponse.json({ error: "Invalid level" }, { status: 400 });
   }
 
