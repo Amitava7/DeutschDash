@@ -81,6 +81,18 @@ export default function LoginPage() {
             {loading ? "Please wait..." : "Sign In"}
           </Button>
         </form>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Need access?{" "}
+          <a
+            href="https://www.linkedin.com/in/amitava-mozumder/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground"
+          >
+            Contact the founder
+          </a>
+        </p>
       </div>
     </div>
   );
