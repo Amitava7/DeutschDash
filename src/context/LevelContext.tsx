@@ -26,15 +26,18 @@ export function LevelProvider({ children }: { children: ReactNode }) {
   }, [session?.user?.level]);
 
   const setLevel = async (newLevel: Level) => {
+    const previousLevel = level;
     setLevelState(newLevel);
     try {
-      await fetch("/api/user/level", {
+      const res = await fetch("/api/user/level", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ level: newLevel }),
       });
+      if (!res.ok) throw new Error("Failed to update level");
       await update({ level: newLevel });
     } catch {
+      setLevelState(previousLevel);
     }
   };
 

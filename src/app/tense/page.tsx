@@ -101,13 +101,12 @@ export default function TensePracticePage() {
       <div key={index} className="flex items-center gap-1 flex-wrap">
         <span className="text-sm">{parts[0]}</span>
         <Input
-          className={`inline-block w-32 h-7 text-sm px-2 ${
-            answer.correct === true
+          className={`inline-block w-32 h-7 text-sm px-2 ${answer.correct === true
               ? "border-green-500 bg-green-50 dark:bg-green-950"
               : answer.correct === false
-              ? "border-red-400 bg-red-50 dark:bg-red-950"
-              : ""
-          }`}
+                ? "border-red-400 bg-red-50 dark:bg-red-950"
+                : ""
+            }`}
           value={answer.value}
           onChange={(e) => {
             if (checked) return;
@@ -117,7 +116,6 @@ export default function TensePracticePage() {
               return next;
             });
           }}
-          placeholder={questions[index]?.hint || ""}
           disabled={checked}
         />
         {parts[1] && <span className="text-sm">{parts[1]}</span>}
