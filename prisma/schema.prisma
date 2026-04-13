@@ -93,3 +93,20 @@ model ReadingPassage {
   questions Json
   level     String @default("B1")
 }
+
+model CaseExercise {
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  caseType      String
+  sentence      String
+  correctAnswer String
+  hint          String
+  level         String @default("B1")
+}
+
+model CrosswordWord {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  word   String
+  hint   String
+  length Int
+  level  String @default("B1")
+}

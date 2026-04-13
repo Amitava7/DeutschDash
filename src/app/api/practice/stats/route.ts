@@ -18,9 +18,11 @@ export async function GET() {
 
     const tenseSessions = sessions.filter((s) => s.type === "tense");
     const readingSessions = sessions.filter((s) => s.type === "reading");
+    const caseSessions = sessions.filter((s) => s.type === "case");
+    const crosswordSessions = sessions.filter((s) => s.type === "crossword");
 
     const avgScore = (arr: typeof sessions) => {
-      const scored = arr.filter((s) => s.score != null && s.totalQuestions);
+      const scored = arr.filter((s) => s.score != null && s.totalQuestions != null && s.totalQuestions > 0);
       if (!scored.length) return null;
       const pct = scored.reduce(
         (sum, s) => sum + s.score! / s.totalQuestions!,
@@ -50,6 +52,14 @@ export async function GET() {
       reading: {
         totalSessions: readingSessions.length,
         avgScore: avgScore(readingSessions),
+      },
+      case: {
+        totalSessions: caseSessions.length,
+        avgScore: avgScore(caseSessions),
+      },
+      crossword: {
+        totalSessions: crosswordSessions.length,
+        avgScore: avgScore(crosswordSessions),
       },
     });
   } catch (error) {

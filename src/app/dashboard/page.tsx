@@ -43,6 +43,14 @@ interface PracticeStats {
     totalSessions: number;
     avgScore: number | null;
   };
+  case: {
+    totalSessions: number;
+    avgScore: number | null;
+  };
+  crossword: {
+    totalSessions: number;
+    avgScore: number | null;
+  };
 }
 
 export default function DashboardPage() {
@@ -192,7 +200,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Tense Practice</CardTitle>
@@ -241,6 +249,52 @@ export default function DashboardPage() {
           <CardFooter>
             <Link href="/reading">
               <Button variant="outline" size="sm">Start Reading</Button>
+            </Link>
+          </CardFooter>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Case Practice</CardTitle>
+            <CardDescription>Article and case exercises</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-2">
+            {stats && (
+              <div className="flex gap-2 text-sm">
+                <Badge variant="secondary">{stats.case.totalSessions} sessions</Badge>
+                {stats.case.avgScore != null && (
+                  <Badge variant={stats.case.avgScore >= 70 ? "default" : "destructive"}>
+                    avg {stats.case.avgScore}%
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Link href="/case">
+              <Button variant="outline" size="sm">Start Practice</Button>
+            </Link>
+          </CardFooter>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Crossword</CardTitle>
+            <CardDescription>German crossword puzzles</CardDescription>
+          </CardHeader>
+          <CardContent className="pb-2">
+            {stats && (
+              <div className="flex gap-2 text-sm">
+                <Badge variant="secondary">{stats.crossword.totalSessions} sessions</Badge>
+                {stats.crossword.avgScore != null && (
+                  <Badge variant={stats.crossword.avgScore >= 70 ? "default" : "destructive"}>
+                    avg {stats.crossword.avgScore}%
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Link href="/crossword">
+              <Button variant="outline" size="sm">Play Crossword</Button>
             </Link>
           </CardFooter>
         </Card>

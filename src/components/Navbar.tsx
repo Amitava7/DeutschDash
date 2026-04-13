@@ -17,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { useLevel } from "@/context/LevelContext";
 
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
@@ -26,7 +25,9 @@ const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/flashcards", label: "Flashcards" },
   { href: "/tense", label: "Tense Practice" },
+  { href: "/case", label: "Case Practice" },
   { href: "/reading", label: "Reading" },
+  { href: "/crossword", label: "Crossword" },
 ];
 
 export default function Navbar() {
