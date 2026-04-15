@@ -4,7 +4,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLevel } from "@/context/LevelContext";
+
+const SIZE_OPTIONS = [
+  { value: "6", label: "6 × 6" },
+  { value: "8", label: "8 × 8" },
+  { value: "10", label: "10 × 10" },
+  { value: "12", label: "12 × 12" },
+];
 
 const SPECIAL_CHARS = ["Ä", "Ö", "Ü", "ß"];
 
@@ -35,6 +43,7 @@ export default function CrosswordPage() {
   const [checkScore, setCheckScore] = useState<{ correct: number; total: number } | null>(null);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [selectedDirection, setSelectedDirection] = useState<"across" | "down">("across");
+  const [gridSize, setGridSize] = useState("6");
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
 
   const load = useCallback(async () => {
@@ -49,7 +58,7 @@ export default function CrosswordPage() {
     const res = await fetch("/api/practice/crossword", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ level }),
+      body: JSON.stringify({ level, size: Number(gridSize) }),
     });
 
     setLoading(false);
@@ -70,12 +79,12 @@ export default function CrosswordPage() {
     inputRefs.current = Array.from({ length: data.size }, () =>
       Array(data.size).fill(null)
     );
-  }, [level]);
+  }, [level, gridSize]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [gridSize]);
 
   const handleCellChange = (row: number, col: number, value: string) => {
     if (checked || !puzzle) return;
@@ -243,11 +252,28 @@ export default function CrosswordPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Crossword</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          German crossword puzzle · Level {level} · Tab to toggle direction
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Crossword</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            German crossword puzzle · Level {level} · Tab to toggle direction
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">Grid size:</span>
+          <Select value={gridSize} onValueChange={(v) => v && setGridSize(v)}>
+            <SelectTrigger className="w-[100px] h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SIZE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {error && (
@@ -269,8 +295,8 @@ export default function CrosswordPage() {
             <div
               className="inline-grid gap-0 border-2 border-foreground"
               style={{
-                gridTemplateColumns: `repeat(${puzzle.size}, 48px)`,
-                gridTemplateRows: `repeat(${puzzle.size}, 48px)`,
+                gridTemplateColumns: `repeat(${puzzle.size}, ${puzzle.size <= 8 ? 48 : 36}px)`,
+                gridTemplateRows: `repeat(${puzzle.size}, ${puzzle.size <= 8 ? 48 : 36}px)`,
               }}
             >
               {puzzle.grid.map((row, r) =>
@@ -283,19 +309,18 @@ export default function CrosswordPage() {
                   return (
                     <div
                       key={`${r}-${c}`}
-                      className={`relative border border-border ${
-                        isBlack
+                      className={`relative border border-border ${isBlack
                           ? "bg-foreground dark:bg-zinc-800"
                           : checked
-                          ? correctCells[r][c]
-                            ? "bg-green-50 dark:bg-green-950"
-                            : "bg-red-50 dark:bg-red-950"
-                          : isSelected
-                          ? "bg-blue-200 dark:bg-blue-900"
-                          : highlighted
-                          ? "bg-blue-100 dark:bg-blue-950"
-                          : "bg-background"
-                      }`}
+                            ? correctCells[r][c]
+                              ? "bg-green-50 dark:bg-green-950"
+                              : "bg-red-50 dark:bg-red-950"
+                            : isSelected
+                              ? "bg-blue-200 dark:bg-blue-900"
+                              : highlighted
+                                ? "bg-blue-100 dark:bg-blue-950"
+                                : "bg-background"
+                        }`}
                       onClick={() => !isBlack && handleCellClick(r, c)}
                     >
                       {cellNum && (

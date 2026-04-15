@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import Link from "next/link";
 import FlipCard from "@/components/FlipCard";
 import { Button } from "@/components/ui/button";
@@ -15,13 +15,25 @@ interface Flashcard {
   easeLevel: number;
 }
 
+function shuffleArray<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 export default function ReviewPage({ params }: { params: Promise<{ deckId: string }> }) {
   const { deckId } = use(params);
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [dueCards, setDueCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [sessionDone, setSessionDone] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [hardCards, setHardCards] = useState<Flashcard[]>([]);
+  const [sessionPhase, setSessionPhase] = useState<"reviewing" | "summary" | "done">("reviewing");
+  const [round, setRound] = useState(1);
 
   useEffect(() => {
     fetch(`/api/decks/${deckId}/flashcards`)
@@ -31,12 +43,12 @@ export default function ReviewPage({ params }: { params: Promise<{ deckId: strin
         const now = new Date();
         const due = data.filter((c) => new Date(c.nextReviewDate) <= now);
         setDueCards(due);
-        if (due.length === 0) setSessionDone(true);
+        if (due.length === 0) setSessionPhase("done");
         setLoading(false);
       });
   }, [deckId]);
 
-  const handleRating = async (rating: "easy" | "hard") => {
+  const handleRating = useCallback(async (rating: "easy" | "hard") => {
     const card = dueCards[currentIndex];
     if (!card) return;
 
@@ -57,33 +69,34 @@ export default function ReviewPage({ params }: { params: Promise<{ deckId: strin
     const updated = await res.json();
 
     if (rating === "hard") {
-      setDueCards((prev) => {
-        const next = [...prev];
-        next.splice(currentIndex, 1);
-        next.push({ ...card, ...updated });
-        return next;
-      });
-    } else {
-      setDueCards((prev) => {
-        const next = [...prev];
-        next.splice(currentIndex, 1);
-        return next;
-      });
+      setHardCards((prev) => [...prev, { ...card, ...updated }]);
     }
 
     setCards((prev) =>
       prev.map((c) => (c.id === card.id ? { ...c, ...updated } : c))
     );
 
-    if (currentIndex >= dueCards.length - 1) {
-      const remaining = rating === "hard" ? dueCards.length : dueCards.length - 1;
-      if (remaining <= 0 || (rating !== "hard" && dueCards.length - 1 <= 0)) {
-        setSessionDone(true);
-      } else if (rating !== "hard") {
-        setCurrentIndex(Math.max(0, dueCards.length - 2));
+    const isLast = currentIndex >= dueCards.length - 1;
+    if (isLast) {
+      const totalHard = rating === "hard" ? hardCards.length + 1 : hardCards.length;
+      if (totalHard > 0) {
+        setSessionPhase("summary");
+      } else {
+        setSessionPhase("done");
       }
+    } else {
+      setCurrentIndex((prev) => prev + 1);
     }
-  };
+  }, [dueCards, currentIndex, deckId, hardCards.length]);
+
+  const handleRedoHard = useCallback(() => {
+    const shuffled = shuffleArray(hardCards);
+    setDueCards(shuffled);
+    setHardCards([]);
+    setCurrentIndex(0);
+    setRound((prev) => prev + 1);
+    setSessionPhase("reviewing");
+  }, [hardCards]);
 
   if (loading) {
     return <p className="text-muted-foreground">Loading cards...</p>;
@@ -100,7 +113,7 @@ export default function ReviewPage({ params }: { params: Promise<{ deckId: strin
     );
   }
 
-  if (sessionDone) {
+  if (sessionPhase === "done") {
     return (
       <div className="text-center space-y-4 py-16">
         <div className="text-4xl">✓</div>
@@ -118,6 +131,28 @@ export default function ReviewPage({ params }: { params: Promise<{ deckId: strin
     );
   }
 
+  if (sessionPhase === "summary") {
+    const easyCount = dueCards.length - hardCards.length;
+    return (
+      <div className="max-w-md mx-auto py-8 space-y-6 text-center">
+        <div className="text-4xl">📋</div>
+        <p className="text-xl font-semibold">Round {round} complete!</p>
+        <div className="space-y-1 text-muted-foreground">
+          <p>{easyCount} card{easyCount !== 1 ? "s" : ""} marked easy</p>
+          <p>{hardCards.length} card{hardCards.length !== 1 ? "s" : ""} marked hard</p>
+        </div>
+        <div className="flex gap-3 justify-center pt-2">
+          <Button variant="outline" onClick={() => setSessionPhase("done")}>
+            Finish
+          </Button>
+          <Button onClick={handleRedoHard}>
+            Redo {hardCards.length} hard card{hardCards.length !== 1 ? "s" : ""}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const current = dueCards[currentIndex];
 
   return (
@@ -127,7 +162,7 @@ export default function ReviewPage({ params }: { params: Promise<{ deckId: strin
           ← Dashboard
         </Link>
         <span className="text-sm text-muted-foreground">
-          {dueCards.length} card{dueCards.length !== 1 ? "s" : ""} remaining
+          {round > 1 ? `Round ${round} · ` : ""}{currentIndex + 1} / {dueCards.length}
         </span>
       </div>
 

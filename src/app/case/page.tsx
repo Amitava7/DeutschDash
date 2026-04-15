@@ -40,7 +40,6 @@ export default function CasePracticePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ level }),
     });
-
     setLoading(false);
 
     if (!res.ok) {
@@ -51,12 +50,14 @@ export default function CasePracticePage() {
     const data = await res.json();
     setQuestions(data.questions);
     setAnswers(data.questions.map(() => ({ value: "", correct: null })));
+
   }, [level]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-  }, []);
+  }, [load]);
+
 
   const normalizeGerman = (s: string) =>
     s
@@ -86,13 +87,12 @@ export default function CasePracticePage() {
       <div key={index} className="flex items-center gap-1 flex-wrap">
         <span className="text-sm">{parts[0]}</span>
         <Input
-          className={`inline-block w-32 h-7 text-sm px-2 ${
-            answer.correct === true
-              ? "border-green-500 bg-green-50 dark:bg-green-950"
-              : answer.correct === false
+          className={`inline-block w-32 h-7 text-sm px-2 ${answer.correct === true
+            ? "border-green-500 bg-green-50 dark:bg-green-950"
+            : answer.correct === false
               ? "border-red-400 bg-red-50 dark:bg-red-950"
               : ""
-          }`}
+            }`}
           value={answer.value}
           onChange={(e) => {
             if (checked) return;

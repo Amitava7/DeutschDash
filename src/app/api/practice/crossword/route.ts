@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
 import { parseJsonBody, validateStringLengths } from "@/lib/validation";
 
-const GRID_SIZE = 6;
+const VALID_SIZES = [6, 8, 10, 12];
+const DEFAULT_SIZE = 6;
 
 interface PlacedWord {
   word: string;
@@ -25,63 +26,185 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+function buildWordPool(
+  allWords: { word: string; hint: string }[],
+  gridSize: number
+): { word: string; hint: string }[] {
+  const eligible = allWords.filter((w) => w.word.length <= gridSize);
+
+  const short = eligible.filter((w) => w.word.length <= 4);
+  const medium = eligible.filter((w) => w.word.length >= 5 && w.word.length <= 6);
+  const long = eligible.filter((w) => w.word.length >= 7);
+
+  const targetTotal = Math.floor(gridSize * 3);
+
+  let shortRatio: number, medRatio: number;
+  if (gridSize <= 6) {
+    shortRatio = 0.40; medRatio = 0.60;
+  } else if (gridSize <= 8) {
+    shortRatio = 0.30; medRatio = 0.35;
+  } else {
+    shortRatio = 0.25; medRatio = 0.30;
+  }
+
+  const shortCount = Math.max(3, Math.round(targetTotal * shortRatio));
+  const medCount = Math.max(3, Math.round(targetTotal * medRatio));
+  const longCount = Math.max(0, targetTotal - shortCount - medCount);
+
+  const picked = [
+    ...shuffle(short).slice(0, shortCount),
+    ...shuffle(medium).slice(0, medCount),
+    ...shuffle(long).slice(0, longCount),
+  ];
+
+  if (picked.length < targetTotal) {
+    const usedWords = new Set(picked.map((w) => w.word));
+    const leftovers = shuffle(eligible.filter((w) => !usedWords.has(w.word)));
+    picked.push(...leftovers.slice(0, targetTotal - picked.length));
+  }
+
+  return shuffle(picked);
+}
+
+type DirGrid = number[][];
+
+function placeWord(
+  grid: string[][],
+  dirGrid: DirGrid,
+  word: string,
+  row: number,
+  col: number,
+  direction: "across" | "down"
+) {
+  const dirBit = direction === "across" ? 1 : 2;
+  for (let i = 0; i < word.length; i++) {
+    if (direction === "across") {
+      grid[row][col + i] = word[i];
+      dirGrid[row][col + i] |= dirBit;
+    } else {
+      grid[row + i][col] = word[i];
+      dirGrid[row + i][col] |= dirBit;
+    }
+  }
+}
+
 function generateCrossword(
-  wordPool: { word: string; hint: string }[]
+  wordPool: { word: string; hint: string }[],
+  gridSize: number
 ): { grid: string[][]; placed: PlacedWord[] } | null {
-  const grid: string[][] = Array.from({ length: GRID_SIZE }, () =>
-    Array(GRID_SIZE).fill("")
+  const grid: string[][] = Array.from({ length: gridSize }, () =>
+    Array(gridSize).fill("")
+  );
+  const dirGrid: DirGrid = Array.from({ length: gridSize }, () =>
+    Array(gridSize).fill(0)
   );
   const placed: PlacedWord[] = [];
-  const shuffled = shuffle(wordPool);
+  const maxWords = Math.floor(gridSize * 2.5);
+  const usedWords = new Set<string>();
 
-  // Try to place the first word horizontally in the middle
-  const firstWord = shuffled.find((w) => w.word.length <= GRID_SIZE);
-  if (!firstWord) return null;
+  const sorted = [...wordPool].sort((a, b) => b.word.length - a.word.length);
 
-  const startCol = Math.floor((GRID_SIZE - firstWord.word.length) / 2);
-  const startRow = Math.floor(GRID_SIZE / 2);
-  for (let i = 0; i < firstWord.word.length; i++) {
-    grid[startRow][startCol + i] = firstWord.word[i];
+  const seedSlots: { rowFrac: number; colFrac: number; dir: "across" | "down" }[] =
+    gridSize <= 6
+      ? [
+        { rowFrac: 0.25, colFrac: 0.5, dir: "across" },
+        { rowFrac: 0.5, colFrac: 0.25, dir: "down" },
+      ]
+      : gridSize <= 8
+        ? [
+          { rowFrac: 0.2, colFrac: 0.5, dir: "across" },
+          { rowFrac: 0.5, colFrac: 0.2, dir: "down" },
+          { rowFrac: 0.8, colFrac: 0.5, dir: "across" },
+        ]
+        : [
+          { rowFrac: 0.15, colFrac: 0.5, dir: "across" },
+          { rowFrac: 0.5, colFrac: 0.15, dir: "down" },
+          { rowFrac: 0.85, colFrac: 0.5, dir: "across" },
+          { rowFrac: 0.5, colFrac: 0.75, dir: "down" },
+        ];
+
+  for (const slot of seedSlots) {
+    const minLen = Math.max(3, gridSize - 3);
+    const seedWord = sorted.find(
+      (w) => !usedWords.has(w.word) && w.word.length >= minLen && w.word.length <= gridSize
+    ) ?? sorted.find(
+      (w) => !usedWords.has(w.word) && w.word.length >= 3 && w.word.length <= gridSize
+    );
+    if (!seedWord) continue;
+
+    const targetRow = Math.floor(gridSize * slot.rowFrac);
+    const targetCol = Math.floor(gridSize * slot.colFrac);
+
+    let row: number, col: number;
+    if (slot.dir === "across") {
+      row = Math.min(targetRow, gridSize - 1);
+      col = Math.max(0, Math.min(
+        Math.floor(targetCol - seedWord.word.length / 2),
+        gridSize - seedWord.word.length
+      ));
+    } else {
+      col = Math.min(targetCol, gridSize - 1);
+      row = Math.max(0, Math.min(
+        Math.floor(targetRow - seedWord.word.length / 2),
+        gridSize - seedWord.word.length
+      ));
+    }
+
+    const check = checkPlacement(grid, dirGrid, seedWord.word, row, col, slot.dir, gridSize);
+    if (!check.valid) continue;
+
+    placeWord(grid, dirGrid, seedWord.word, row, col, slot.dir);
+    usedWords.add(seedWord.word);
+    placed.push({
+      word: seedWord.word,
+      hint: seedWord.hint,
+      row,
+      col,
+      direction: slot.dir,
+      number: placed.length + 1,
+    });
   }
-  placed.push({
-    word: firstWord.word,
-    hint: firstWord.hint,
-    row: startRow,
-    col: startCol,
-    direction: "across",
-    number: 1,
-  });
 
-  const remaining = shuffled.filter((w) => w !== firstWord);
+  if (placed.length === 0) return null;
 
-  // Try to place more words by finding intersections
-  for (const candidate of remaining) {
-    if (placed.length >= 8) break; // enough words for a good puzzle
-
-    const bestPlacement = findBestPlacement(grid, candidate.word);
-    if (bestPlacement) {
-      const { row, col, direction } = bestPlacement;
-      for (let i = 0; i < candidate.word.length; i++) {
-        if (direction === "across") {
-          grid[row][col + i] = candidate.word[i];
-        } else {
-          grid[row + i][col] = candidate.word[i];
-        }
-      }
+  const longCandidates = sorted.filter((w) => !usedWords.has(w.word) && w.word.length >= 5);
+  for (const candidate of longCandidates) {
+    if (placed.length >= maxWords) break;
+    const best = findBestPlacement(grid, dirGrid, candidate.word, gridSize);
+    if (best) {
+      placeWord(grid, dirGrid, candidate.word, best.row, best.col, best.direction);
+      usedWords.add(candidate.word);
       placed.push({
         word: candidate.word,
         hint: candidate.hint,
-        row,
-        col,
-        direction,
+        row: best.row,
+        col: best.col,
+        direction: best.direction,
         number: placed.length + 1,
       });
     }
   }
 
-  if (placed.length < 3) return null; // need at least 3 words
+  const shortCandidates = sorted.filter((w) => !usedWords.has(w.word) && w.word.length < 5);
+  for (const candidate of shortCandidates) {
+    if (placed.length >= maxWords) break;
+    const best = findBestPlacement(grid, dirGrid, candidate.word, gridSize);
+    if (best) {
+      placeWord(grid, dirGrid, candidate.word, best.row, best.col, best.direction);
+      usedWords.add(candidate.word);
+      placed.push({
+        word: candidate.word,
+        hint: candidate.hint,
+        row: best.row,
+        col: best.col,
+        direction: best.direction,
+        number: placed.length + 1,
+      });
+    }
+  }
 
-  // Reassign numbers in reading order (top-to-bottom, left-to-right)
+  if (placed.length < 3) return null;
+
   placed.sort((a, b) => a.row - b.row || a.col - b.col);
   const numberMap = new Map<string, number>();
   let num = 1;
@@ -98,22 +221,22 @@ function generateCrossword(
 
 function findBestPlacement(
   grid: string[][],
-  word: string
+  dirGrid: DirGrid,
+  word: string,
+  gridSize: number
 ): { row: number; col: number; direction: "across" | "down" } | null {
   const candidates: { row: number; col: number; direction: "across" | "down"; intersections: number }[] = [];
 
-  for (let r = 0; r < GRID_SIZE; r++) {
-    for (let c = 0; c < GRID_SIZE; c++) {
-      // Try placing across
-      if (c + word.length <= GRID_SIZE) {
-        const result = checkPlacement(grid, word, r, c, "across");
+  for (let r = 0; r < gridSize; r++) {
+    for (let c = 0; c < gridSize; c++) {
+      if (c + word.length <= gridSize) {
+        const result = checkPlacement(grid, dirGrid, word, r, c, "across", gridSize);
         if (result.valid && result.intersections > 0) {
           candidates.push({ row: r, col: c, direction: "across", intersections: result.intersections });
         }
       }
-      // Try placing down
-      if (r + word.length <= GRID_SIZE) {
-        const result = checkPlacement(grid, word, r, c, "down");
+      if (r + word.length <= gridSize) {
+        const result = checkPlacement(grid, dirGrid, word, r, c, "down", gridSize);
         if (result.valid && result.intersections > 0) {
           candidates.push({ row: r, col: c, direction: "down", intersections: result.intersections });
         }
@@ -122,33 +245,33 @@ function findBestPlacement(
   }
 
   if (candidates.length === 0) return null;
-  // Prefer placements with more intersections
   candidates.sort((a, b) => b.intersections - a.intersections);
   return candidates[0];
 }
 
 function checkPlacement(
   grid: string[][],
+  dirGrid: DirGrid,
   word: string,
   row: number,
   col: number,
-  direction: "across" | "down"
+  direction: "across" | "down",
+  gridSize: number
 ): { valid: boolean; intersections: number } {
   let intersections = 0;
   const dr = direction === "down" ? 1 : 0;
   const dc = direction === "across" ? 1 : 0;
+  const sameDirBit = direction === "across" ? 1 : 2;
 
-  // Check cell before the word is empty
   const beforeR = row - dr;
   const beforeC = col - dc;
   if (beforeR >= 0 && beforeC >= 0 && grid[beforeR][beforeC] !== "") {
     return { valid: false, intersections: 0 };
   }
 
-  // Check cell after the word is empty
   const afterR = row + dr * word.length;
   const afterC = col + dc * word.length;
-  if (afterR < GRID_SIZE && afterC < GRID_SIZE && grid[afterR][afterC] !== "") {
+  if (afterR < gridSize && afterC < gridSize && grid[afterR][afterC] !== "") {
     return { valid: false, intersections: 0 };
   }
 
@@ -158,26 +281,26 @@ function checkPlacement(
     const cell = grid[r][c];
 
     if (cell !== "") {
-      // Cell occupied — must match the letter
       if (cell !== word[i]) {
+        return { valid: false, intersections: 0 };
+      }
+      if (dirGrid[r][c] & sameDirBit) {
         return { valid: false, intersections: 0 };
       }
       intersections++;
     } else {
-      // Cell empty — check that adjacent cells perpendicular to direction are also empty
-      // (to avoid words running parallel right next to each other)
       if (direction === "across") {
-        if (r > 0 && grid[r - 1][c] !== "" && !isPartOfExistingWord(grid, r - 1, c, "down", r, c)) {
+        if (r > 0 && grid[r - 1][c] !== "") {
           return { valid: false, intersections: 0 };
         }
-        if (r < GRID_SIZE - 1 && grid[r + 1][c] !== "" && !isPartOfExistingWord(grid, r + 1, c, "down", r, c)) {
+        if (r < gridSize - 1 && grid[r + 1][c] !== "") {
           return { valid: false, intersections: 0 };
         }
       } else {
-        if (c > 0 && grid[r][c - 1] !== "" && !isPartOfExistingWord(grid, r, c - 1, "across", r, c)) {
+        if (c > 0 && grid[r][c - 1] !== "") {
           return { valid: false, intersections: 0 };
         }
-        if (c < GRID_SIZE - 1 && grid[r][c + 1] !== "" && !isPartOfExistingWord(grid, r, c + 1, "across", r, c)) {
+        if (c < gridSize - 1 && grid[r][c + 1] !== "") {
           return { valid: false, intersections: 0 };
         }
       }
@@ -187,19 +310,6 @@ function checkPlacement(
   return { valid: true, intersections };
 }
 
-function isPartOfExistingWord(
-  _grid: string[][],
-  _adjR: number,
-  _adjC: number,
-  _checkDir: string,
-  _curR: number,
-  _curC: number
-): boolean {
-  // Simplified: if adjacent cell is occupied and this cell is empty,
-  // it would create an unintended adjacency. Return false to be safe.
-  return false;
-}
-
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -207,10 +317,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const [body, parseError] = await parseJsonBody<{ level?: string }>(request);
+    const [body, parseError] = await parseJsonBody<{ level?: string; size?: number }>(request);
     if (parseError) return parseError;
 
     const { level } = body;
+    const gridSize = VALID_SIZES.includes(body.size as number) ? (body.size as number) : DEFAULT_SIZE;
 
     const lengthError = validateStringLengths(body, ["level"]);
     if (lengthError) return lengthError;
@@ -226,9 +337,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Deduplicate words by word text to prevent same hint appearing twice
     const seen = new Set<string>();
-    const wordPool = words
+    const deduped = words
       .filter((w: { word: string }) => {
         if (seen.has(w.word)) return false;
         seen.add(w.word);
@@ -236,10 +346,10 @@ export async function POST(request: Request) {
       })
       .map((w: { word: string; hint: string }) => ({ word: w.word, hint: w.hint }));
 
-    // Try generating a valid crossword (retry a few times since it's random)
     let result = null;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      result = generateCrossword(wordPool);
+    for (let attempt = 0; attempt < 15; attempt++) {
+      const wordPool = buildWordPool(deduped, gridSize);
+      result = generateCrossword(wordPool, gridSize);
       if (result && result.placed.length >= 3) break;
     }
 
@@ -250,12 +360,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build the final grid with blacked-out cells
     const finalGrid = result.grid.map((row) =>
       row.map((cell) => (cell === "" ? "#" : ""))
     );
 
-    // Create practice session
     const practiceSession = await prisma.practiceSession.create({
       data: {
         type: "crossword",
@@ -265,6 +373,7 @@ export async function POST(request: Request) {
         userId: session.user.id,
         data: {
           placed: result.placed as unknown as import("@prisma/client").Prisma.JsonArray,
+          gridSize,
         },
       },
     });
@@ -272,7 +381,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       sessionId: practiceSession.id,
       grid: finalGrid,
-      size: GRID_SIZE,
+      size: gridSize,
       clues: {
         across: result.placed
           .filter((p) => p.direction === "across")
@@ -313,14 +422,15 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    const sessionData = existing.data as { placed: PlacedWord[] } | null;
+    const sessionData = existing.data as { placed: PlacedWord[]; gridSize?: number } | null;
     if (!sessionData?.placed) {
       return NextResponse.json({ error: "Invalid session data" }, { status: 400 });
     }
 
-    // Rebuild the solution grid server-side from stored placed words
-    const solutionGrid: string[][] = Array.from({ length: GRID_SIZE }, () =>
-      Array(GRID_SIZE).fill("")
+    const storedSize = sessionData.gridSize || DEFAULT_SIZE;
+
+    const solutionGrid: string[][] = Array.from({ length: storedSize }, () =>
+      Array(storedSize).fill("")
     );
     for (const p of sessionData.placed) {
       for (let i = 0; i < p.word.length; i++) {
@@ -332,7 +442,6 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Calculate correctness per cell
     const correctCells = solutionGrid.map((row, r) =>
       row.map((cell, c) => {
         if (cell === "") return true;
@@ -340,7 +449,6 @@ export async function PATCH(request: Request) {
       })
     );
 
-    // Calculate score: count correct words
     let correctWords = 0;
     for (const p of sessionData.placed) {
       let wordCorrect = true;
