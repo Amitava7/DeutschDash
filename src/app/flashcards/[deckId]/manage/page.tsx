@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+
+const SPECIAL_CHARS = ["ä", "ö", "ü", "ß"];
 
 interface Flashcard {
   id: string;
@@ -25,15 +27,16 @@ export default function ManageDeckPage({ params }: { params: Promise<{ deckId: s
   const [english, setEnglish] = useState("");
   const [adding, setAdding] = useState(false);
 
-  const fetchCards = async () => {
+  const fetchCards = useCallback(async () => {
     const res = await fetch(`/api/decks/${deckId}/flashcards`);
     if (res.ok) setCards(await res.json());
     setLoading(false);
-  };
+  }, [deckId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCards();
-  }, [deckId]);
+  }, [fetchCards]);
 
   const addCard = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +90,20 @@ export default function ManageDeckPage({ params }: { params: Promise<{ deckId: s
               placeholder="e.g. Haus"
               required
             />
+            <div className="flex gap-1">
+              {SPECIAL_CHARS.map((ch) => (
+                <Button
+                  key={ch}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-9 h-7 text-sm font-bold"
+                  onClick={() => setGerman((prev) => prev + ch)}
+                >
+                  {ch}
+                </Button>
+              ))}
+            </div>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">English Translation</Label>

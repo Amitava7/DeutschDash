@@ -18,6 +18,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLevel } from "@/context/LevelContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Moon, Sun } from "lucide-react";
 
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 
@@ -34,6 +36,7 @@ export default function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const { level, setLevel } = useLevel();
+  const { theme, toggleTheme } = useTheme();
 
   if (!session) return null;
 
@@ -61,6 +64,14 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            aria-label="Toggle dark mode"
+          >
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
           <Select value={level} onValueChange={(v) => setLevel(v as typeof level)}>
             <SelectTrigger className="w-[80px] h-8 text-sm">
               <SelectValue />
